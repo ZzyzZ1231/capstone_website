@@ -8,4 +8,4 @@ export default defineConfig({
   integrations: [mdx(), tailwind()]
 });
 
-// https://zzyzz1231.github.io/capstone_website
+// https://ZzyzZ1231.github.io/capstone_website

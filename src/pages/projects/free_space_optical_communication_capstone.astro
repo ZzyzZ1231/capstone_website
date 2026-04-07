@@ -1,0 +1,195 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout>
+  <div class="max-w-3xl mx-auto py-12">
+    <h1 class="text-4xl font-bold mb-4">
+      Free Space Optical Communication - Capstone
+    </h1>
+
+   <div class="flex justify-between items-center mb-8">
+      <p class="text-lg text-gray-600">
+        Optical Design Lead
+      </p>
+      
+      <p class="text-lg text-gray-600">
+        Sep 2025 - Apr 2026
+      </p>
+</div>
+
+<div>
+  <div class="space-y-4">
+    <div class="space-y-6">
+      <div class="space-y-4">
+        <h2 class="text-2xl font-semibold">Overview</h2>
+        <p> Designing a gimbal with optical system that provides real time tracking of a class 2 laser 100m away from the gimbal at 1m/s. 
+        The feedback system of the laser needs to be a camera rather than photo diodes. Entries discussed here are mostly my work regarding the project, as there is a significant deviation from the presented project compared to the actual project. Treat it as a simplification of the project, as the actual project is much more complex and difficult to present in a concise manner with the extra technical jargon.</p>
+      </div>
+
+      <div class="space-y-4">
+        <h2 class="text-2xl font-semibold">Design Constraints</h2>
+        <p>Note that these constraints are hard constraints, everything else is a suggestion therefore not included.</p>
+        <ul class="list-disc ml-6">
+          <li>No component attachment allowed on the drone side.</li>
+          <li>Laser power limited to class 2</li>
+          <li>Setup must be compact and portable.</li>
+          <li>build cost below $7000 CAD</li>
+        </ul>
+      </div>
+
+      <div class="space-y-4">
+        <h2 class="text-2xl font-semibold">Background Information</h2>
+        <p>
+          The journey to a complete system is very complicated, and many of my original research has not made it to this document. It was enjoyable regardless learning a completely new field that I am not familiar with.
+        </p>
+        <p>
+          But first, let's run through some background knowledge. The optical system that we are using is very simple, as our project is an abstraction of the real product. However, two issues here. First this abstraction of the project actually backfired quite a bit, it made my life a whole lot harder. Most of this pain and suffering will not be covered but when relevant, I will mention a few points. Secondly, it is obvious from the get-go that, Dr. Jonathan Holzman, our coach for the project who designed the requirement for this project, wanted us to potentially implemented it in a real system, even though the client description did not state anything regarding implementations at all. The description given was basically in the overview section, and the freedom was given to our team to figure out how to implement the system. 
+        </p>
+        <p>
+          temporary example, <strong>Bold</strong> <em>italic</em> <u>underlined</u>
+        </p>
+        <p>
+          The final design for the full system in diagram form is shown below. This version had many flaws that weren't able to be fixed due to various project and time constraints. See each subsystem sections to see the ideal form of the system. Regardless, the system shows that a laser source should be emitted from the ground station, traveling through the beam splitter, then the transmission mirror that connects laser optical plane to the gimbal, where the final mirror will redirect the laser to the drone. The returning beam will return from the same path that they are projected from, which should pass through the beam splitter which redirects the beam into a error magnification setup. The setup is explained more in the optical section.
+        </p>
+          <img
+            src="/full_setup.png"
+            alt="Capstone system architecture diagram"
+            class="w-full max-w-3xl my-8"
+          />
+      </div>
+
+      <h2 class="text-2xl font-semibold">Design Process</h2>
+      <p>
+        There are <strong>four main subsystems</strong> that functions in conjunction in this project. The <a href="#Mechanical-Subsystem"><em><u>mechanical system</u></em></a> (motorized gimbal that mechanically achieve Acquisition Pointing and Tracking, aka APT), the <a href="#Optical-Subsystem"><em><u>optical system</u></em></a> (the lenses and the detector that optically obtains the feedback information from the retroreflector), the <a href="#Control-Subsystem"><em><u>control system</u></em></a> (the signal for the gimbal based on optical feedback, and active control algorithm for clarify the image over noise and ghost reflections), and lastly, the <a href="#Electrical-Subsystem"><em><u>electrical system</u></em></a> (powers electronics for the mechanical section, as well as bridging for the optical system into the control system).
+      </p>
+      <div class="space-y-4", id="Mechanical-Subsystem">
+        <h3 class="text-lg font-semibold">Mechanical Subsystem</h3>
+        <p>
+          Mechanical designs are relatively simple, there are some caveats but nothing too crazy. The tracking requirement is extrememly fine, which I will cover more in the optical section. But, long story short, the gimbal is required to, assuming perfect accuracy (accuracy is defined as the anglular error of repeated positioning to the same position), operate at 0.17 degrees full range (see optical section for context). Since we are using stepper motors, this means that positioning is descretized, and that the gimbal needs to be able to position itself at multiple positions within the full range to enable enough information from the feedback systems to identify the errors and correct itself effectively. 
+        </p>
+        <p>
+          Single 2-axes gimbal design isn't enough. Even though stepper motors are capable of microstepping, but since torque decreases over increased microstepping, so it is harder to get a responsive system (which requires a lot of torque for fast switching). Let's do a simple analysis:
+        </p>
+        <p>
+          For microstepping, the formula is <u>360 degrees / (200 steps per revolution x microstep resolution)</u>, and microstep resolution is in powers of 2. Let's say we start with 32 microsteps (0.05625 degrees), then 64 (0.028125 degrees), 128 (0.0140625 degrees), and max of 256 (0.00703125 degrees). The number of steps I have available for the full range in microsteps are calculated by dividing the full range by the microstepped resolution, <u>0.172 degrees full range / microstepped resolution in deg</u>. This yields the following for 32 (3.06 microsteps), 64 (6.11 microsteps), 128 (12.22 microsteps), 256 (24.44 microsteps). I was only able to get 64 microsteps working with TMC2209 driver with dir/step configuration, further microstepping settings require access of UART, which I ran out of time exploring. Torque wise, a great article from Analogue Devices (parent company of Trinamic) <a href="https://www.analog.com/en/resources/analog-dialogue/articles/mastering-precision-understanding-microstepping.html"><em><u>Mastering Precision: Understanding Microstepping in Motion Control</em></u></a>. To simply put, even at 64 microsteps, the holding torque is already only ~2.5% of the original torque, any high switching manuver will be difficult under this value. So, there are two solutions explored, a secondary gimbal or a gear reducer with extra feedback system to form a closed control loop.
+        </p>
+        <p>
+          Initially I did a lot of exploration of the two stage gimbal, as a kinematics mirror mount from Thorlabs (with screw driven adjustment) can be refitted with two stepper motors for an extra fine stage control, but for me to work with my teammate's control system, which is basically a webcam and a machine vision model, it is impossible to get a feedback look fast enough to adjust both gimbals. The switching frequency of the fine stage gimbal is best if it is magnitudes above the coarse gimbal so that any mechanical inaccuracies can be compensated. This aligns with free space optics where fast switching mirrors (FSMs) are used at kilohertz frequency, to adjust and compensate for mechanical gimbal discretized steps. The path is difficult and require great understanding of coupling different control systems, since this method could potentially call for 3 separate control loops, where the two gimbals (fine and coarse) will feedback magnetic encoder position data, and third control loop operates on the error of the returning beam. This is so difficult that it could be a project on its own, the alternative method is to reduce the two stage gimbal into a single stage gimbal with a harmonic / cycloidal gear reducer, but that also has its own issues. For what I can find, harmonic reducers are extrememly accurate, but this so claimed zero backlash reducer will still produce 30 arcseconds worth of accuracy error, which is 0.0083 degrees. It doesn't seem like much until you realize that if we take the same 0.172 and divide this value, we get 1/20th of the full range (5%). This means the control loop will have to compensate for this deviation every time the direction is changed. This could be very time consuming to tune for the right control loop parameters, and since the reducer never arrived, the final design is simply a 2-axes gimbal with 64 microsteps. If this system were to be implemented in the future, a FSM (or deformable mirror, much more expensive) can solve all the mechanical issues we've faced. Since all mechanical vibrations and various discretization issues can be compensated by the much faster switching frequencies.
+        </p>
+          <img
+            src="/final_gimbal.png"
+            alt="Final gimbal design"
+            class="w-full max-w-3xl my-8"
+          />
+      </div>
+
+      <div class="space-y-4", id="Optical-Subsystem">
+        <h3 class="text-lg font-semibold">Optical Subsystem</h3>
+        <p>
+          Mentioned in mechanical subsystem, the full range of the optical system is 0.17 degrees. This came from the experiment did at roughly 100-110m, a soccer field away. The resulted laser divergence, even though it is elliptical for that our laser source is semiconductor based, the diameter of the circular area that guarantees retro reflection is roughly 300mm. At 100m away, this makes <u>atan(0.3m/100m) x 180 / π = 0.172 degrees</u>. This is a ridiculously small angle for the full detection range, so realistically there are a couple of solutions here that can enable tracking. Firstly, if we assume the drone can send Real Time Kinematics (RTK) information back, then it is obvious, a predictive tracking algorithm can be used and with a fast enough control loop, we can work with a small angle like what we have. I've explored GNSS RTK, multiple ground gimbal for triangulation and position estimation, using radio frequencies to send RTK information back to ground station, as well as laser beam modulation (we'll talk more in a little bit). However, this was axed after weeks of exploration, due to the client providing clarification to their requirement, which included a ban on any other attachment onto the drone other than the retro reflector. Presumably this is due to the requirement for a passive FSOC system, used for high data transfer and stealth purposes. I won't get too much into the detail here because I don't know if I have the right to discuss that here. 
+        </p>
+        <p>
+          So, this realistically only leaves me with two solutions, one of which is to use a wide beam, which I have considered. However the return beam power will be negligible for a class 2 laser even for 100m. I have conducted tests under low light situations, and it is very visible, but due to the fact that our access to the optical gear is dependent on what the Integrated Optics Lab has, means we can only capture 1-inch diameter of the 4-cm or 1.57-inch diameter return beam. The full beam brightness is shown as following:
+        </p>
+          <img
+            src="/full_beam_100m.png"
+            alt="Full beam at 100m"
+            class="w-full max-w-3xl my-8"
+          />
+        <p>
+          The hexagonal shape is due to FraunHofer's Diffraction, or far field diffraction. Since the 3D retroreflector has 3 faces, the diffraction pattern is a hexagon. I assume that this is the primary reason why our project was required to use a camera instead of photodiodes, due to the inconsistencies of the diffraction pattern. Since the beam power dissipation is squared with the distance traveled, even though a wide beam can provide the necessary error values, significantly increased from 0.172 degrees, but for a class 2 laser it is almost in distinguishable from ambient noise under any remotely bright light source. The issue will be non-existent, however, if we can use a higher power laser, but due to project safety constraints that is not possible.
+        </p>
+          <img
+            src="/retroreflector_principle.png"
+            alt="Retroreflector principle"
+            class="w-full max-w-3xl my-8"
+          />
+        <p>
+          Realistically, in a FSOC system, the beam is modulated to encode information, so the returning beam can be filtered to differentiate from the ambient noise. We don't have access to any of that, but I did explore using a avalanche photodiode nano second pulse laser to achieve the effect of an interferometer, and see if I can obtain both the distance of the drone (for angular error calculation depending on drone radial distance) and the modulated form of error at the same time. The idea was great but realistically, in the real FSOC system it is already modulated, so this issue should be solve with the realistic gear if it were to be implemented in the future.
+        </p>
+          <img
+            src="/sim4.png"
+            alt="error magnification setup simulation"
+            class="w-full max-w-3xl my-8"
+          />
+          <p>
+            So, I've solved the problem with a simple error magnification setup, a beam reducer (galilean or keplerian, cassegrain will be much more compact but not achievable with provided optics) inspired by Shack-Hartmann wavefront sensor, which takes the regional wavefront distortions and focuses onto a photodiode array. This is used in FSOC systems to correct wavefront errors with deformable mirrors. Since my tracking device is single beam tracking, regardless of the beam quality, I only need two lenses to magnify the entire beam error instead of a full Shack-Hartmann sensor. This implementation worked well, but very dependent on the focal length of the optics, as well as the size of the second lens.
+          </p>
+      </div>
+
+          <img
+            src="/beam_reducer.jpg"
+            alt="error magnification setup test"
+            class="w-full max-w-3xl my-8"
+          />
+          <p>
+            The error magnified beam will then project onto a projection plane. This is where the webcam can capture the required error and complete the optical feedback control loop. The entire optical setup can be visualized as following:
+          </p>
+          <p>
+            Outgoing beam path: Laser source -> Beam splitter -> Transmission mirror -> Gimbal -> Drone (retroreflector)
+          </p>
+          <img
+            src="/outgoing.jpg"
+            alt="outgoing beam path visualization"
+            class="w-full max-w-3xl my-8"
+          />
+          <p>
+            Returning beam path: Drone (retroreflector) -> Gimbal -> Transmission mirror -> Beam splitter -> Error magnification setup -> Projection plane -> webcam
+          <img
+            src="/return.jpg"
+            alt="return beam path visualization"
+            class="w-full max-w-3xl my-8"
+          />
+
+      <div class="space-y-4", id="Control-Subsystem">
+        <h3 class="text-lg font-semibold">Control Subsystem</h3>
+        <p>
+          Control system is such a beast, maybe I will cover it independently in more depth in the future. The gist is, in case of multiple control loops, tuning is crucial. This is a proposed idea but that alone can take us months to solve. Let's just say that for the presentation purposes, a simple PID controller is used, but realistically control systems runs so deep into the project, it is impossible to complete all required analysis and implementation within reasonable time frame.         </p>
+        </p>
+        <p>
+          Here is a peek into what needs to be done: assuming three feedback systems to expose three observable and controllable variables. The coarse gimbal, fine gimbal and the optical feedback. First the sample rates needs to be fast, so that fine gimbal can compensate coarse gimbal like FSM, then the optical feedback control loop need to send an error to the gimbal control group which on their own also requires an algorithm to couple the two gimbals together. Also, sample rates aside, the due to the low accuracy of the vision model, various debug needs to happen for our specific cases, such as oscillations and complex hidden instabilities due to bad feedback or control loop coupling etc. Our vision model and the hardware I've got access to can never provide enough sample rate, and fast enough response for me to consider these issues as low frequency errors, where in professional FSOC systems, FSM switching at 3Khz is much better at compensating the system than my setup. It might be confusing, but equally is the amount of consideration I've made for this thing. Enough said, moving on.
+        </p>
+        </div>
+
+      <div class="space-y-4", id="Electrical-Subsystem">
+        <h3 class="text-lg font-semibold">Electrical Subsystem</h3>
+        <p>
+            Electrical subsystem is interesting, as this was originally the part -- alongside mechanical subsystem, that I was focusing on. The power electronics was simple, originally I wanted to design a custom gimbal with full blown custom PCBs, but since I moved to optics, no PCB was ever made, and the whole setup stayed in module form. The setup includes a microcontroller (STM32G474RE) connected to trinamic TMC2209 stepper driver, and a 3D printer PSU for stepper motor power source. 
+        </p>
+        <p>
+          This is the first time I wrote custom firmware for a project, it has always been my passion to work with hardware that integrates with mechanical designs. So expectedly, the firmware wasn't good, but the ideas are pretty much all there. Some tweaks are recommended by friends with extensive experience regarding firmware, but I can't fix it since this is no longer my part. I will comback, just like control systems, in a future project to explain more on the implementation and idea behind my hardware and firmware choices. 
+        </p>
+        <p>
+          For the time being, the logic of my firmware is as following: the number of steps required is fed into the microcontroller, which will trigger and configure the timer, that leads to precise timing of hardware interrupt occur whenever a step is supposed to happen. The bad practice I used is to constantly changing timer with every step and recalculates the acceleration profile inside the ISR, which lead to a jittery and heavy ISR in return, and stepper speed is only stable up to about 3 revolutions per second. So in the end, the speed of the stepper motor can't be used with a reducer, or the gimbal is practically not moving. Torque profile may have also been weaker due to my jittery setup, but this can easily turn into a working design if I had more time to work on this specific topic. 
+        </p>
+          <img
+            src="/motor_setup.jpg"
+            alt="motor driver setup"
+            class="w-full max-w-3xl my-8"
+          />
+        </div>
+      <p>
+        So, after combining all the systems together, the solidworks model looks more or less like this:
+      </p>
+        <img
+          src="/full_setup_sw.png"
+          alt="full_setup_digital_twin"
+          class="w-full max-w-3xl my-8"
+        />
+      <div class="space-y-4">
+        <h2 class="text-2xl font-semibold">Conclusion</h2>
+        <p>
+          Personally I loved the project all the way through. I've put many night researching things regarding FSOC, and how they have done it before using photodiodes, to now using cameras and machine learning. Everything is amazing, but being a mechanical student, this is probably not going any further. Looking up concepts that are natural to electrical students is painful, even though the process of gaining new knowledge is enjoyable. 
+        </p>
+        <p>
+          If I ever had to chance to choose this project again, I would do it again. But perhaps with a team more familiarized to work with, since knowing each other's limit can produce much better results, and regrettably this time around we don't have a working product by my definition. It's been an interesting journey and I have to thank Dr. Holzman for always been behind our backs, and Dr. Anas giving us feedback to our design proposals, as well as various other faculties and peers who are also motivated and have helped contributing in various ways. 
+        </p>
+        <p>
+          Here I shall conclude the article, thanks for reading. 
+        </p>
+      </div>
+
+    </div>
+  </div>
+</BaseLayout>
